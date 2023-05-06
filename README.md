@@ -7,7 +7,7 @@ dezeroに流行りの自然言語処理のモデルやアーキテクチャを�
 ✓Multi Head Attention<br>
 ✓Self Attention<br>
 ✓Feed Forward Network<br>
-✓Simple Attention(ただしもう機能停止)<br>
+✓Simple Attention(消去済み)<br>
 ✘Positional Encoding<br>
 ✘Layer Normalization<br>
 ✘Transformer Encoder<br>
