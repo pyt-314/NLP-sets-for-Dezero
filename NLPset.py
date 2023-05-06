@@ -26,7 +26,7 @@ def gelu(xs):
     return out
 
 # =============================================================================
-# GLU
+# GLU(Now developing?)
 # =============================================================================
 
 
@@ -40,7 +40,7 @@ class GLU(Layer):
         return out
 
 # =============================================================================
-# SimpleAttention/Dense/MatMul/Feed Forward Network(FFN)
+# Dense/MatMul/Feed Forward Network(FFN)
 # =============================================================================
 
 class Dense(L.Linear):
@@ -64,26 +64,6 @@ class Matmul2(Function):
 
 def matmul2(q, k):
     return Matmul2()(q, k)
-
-class SimpleAttention(Layer):
-    def __init__(self, depth, rate):
-        super().__init__()
-        self.depth = depth
-        self.linearQ = Dense(depth)
-        self.linearK = Dense(depth)
-        self.linearV = Dense(depth)
-        self.linearO = Dense(depth)
-        self.dr = rate
-
-    def forward(self, q, kv):
-        Q = self.linearQ(q)
-        K = self.linearK(kv)
-        V = self.linearV(kv)
-        attw = F.softmax(matmul2(Q, K.transpose(0, 2, 1)))
-        attw = F.dropout(attw, self.dr)
-        out = matmul2(attw, V)
-        out = self.linearO(out)
-        return V+out
 
 
 class Multi_Head_Attention(Layer):
@@ -132,12 +112,72 @@ class FFN(Layer):
         self.l2 = L.linear(in_size)
 
 # =============================================================================
-# Test
+# LayerNorm/PositionalEncoding/wrapper(from https://qiita.com/halhorn/items/c91497522be27bde17ce)
 # =============================================================================
 
-a = Variable(np.random.rand(10, 24, 16))
-d = Variable(np.random.rand(10, 27, 16))
-lay = Self_Attention(16,4, 0.01)#(Multi_Head_Attention)
-b = lay(a)
-b.backward()
-c = a.grad.data
+def Norm(x):
+    N,T,D = x.shape
+    #(N,T,D) -> (T*D,N)
+    x = x.transpose(1,2,0).reshape(-1,N)
+    mean = x.sum(axis=0,keepdims=True)/T*D
+    var = ((x-mean).sum(axis=0,keepdims=True)/T*D)**0.5
+    out = (x-mean)/(var+1e-5)
+    return out.T.reshape(N,T,D)
+
+class LayerNorm(Layer):
+    def __init__(self,hidden_size=None):
+        super().__init__()
+        self.var = Parameter(np.ones(hidden_size,1))
+        self.ma = Parameter(np.zeros(hidden_size,1))
+    def _init_params(self,x):
+        self.var.data = np.ones((x,1))
+        self.ma.data = np.zeros((x,1))
+    def forward(self,x):
+        self.shape = x.shape
+        n = self.shape[1]*self.shape[2]
+        if self.var.data == None:
+            self._init_params(n)
+        x = x.reshape(self.shape[0],-1).T
+        mean = x.sum(axis=0,keepdims=True)/n
+        var1 = (((x - mean)**2).sum(axis=0,keepdims=True)/n)**0.5
+        out = (x-mean)/(var1+1e-6)
+        return out*self.var+self.ma
+
+class Positional_Encoding1(Layer):
+    def __init__(self,input_shape=None,max_len=1000):
+        super().__init__()
+        if input_shape != None:
+            self.map = Parameter(input_shape)
+        else:
+            self.map = Parameter(None)
+    def _init_map(self,x):
+        N,T,H = x.shape
+        self.map.data = np.random.randn(1,H)
+    def forward(self,x):
+        if self.map.data == None:
+            self._init_map(x)
+        return x + self.map
+
+class Positional_Encoding2(Layer):
+    def __init__(self):
+        super().__init__()
+    def forward(self,x):
+        N,T,H = x.shape
+        pos = np.arange(0,H,1)//2*2
+        pos1 = (np.arange(0,H,1)%2) * np.pi/2
+        time = np.arange(0,T,1).reshape(-1,1)
+        u = (10000**(pos/H)).reshape(1,H).repeat(T,axis=0)
+        pe = np.sin(time/u+pos1)
+        self.pe = pe
+        return x+pe
+        
+class Wrapper(Layer):
+    def __init__(self,layer,dropout_rate=0.1):
+        super().__init__()
+        self.rate = dropout_rate
+        self.norm = LayerNorm()
+        self.layer = layer
+    def forward(self,x):
+        ou = self.norm(x)
+        ou = F.dropout(self.layer(ou),self.rate)
+
