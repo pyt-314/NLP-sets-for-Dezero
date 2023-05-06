@@ -8,8 +8,8 @@ dezeroに流行りの自然言語処理のモデルやアーキテクチャを�
 ✓Self Attention<br>
 ✓Feed Forward Network<br>
 ✓Simple Attention(消去済み)<br>
-✘Positional Encoding<br>
-✘Layer Normalization<br>
+✓Positional Encoding<br>
+✓Layer Normalization<br>
 ✘Transformer Encoder<br>
 ✘Transformer Decoder<br>
 ✘Transformer Model<br>
