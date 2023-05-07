@@ -181,3 +181,29 @@ class Wrapper(Layer):
         ou = self.norm(x)
         ou = F.dropout(self.layer(ou),self.rate)
         return ou
+
+# =============================================================================
+# Transformer Encoder
+# =============================================================================
+
+class Transformer_Encoder(Layer):
+    def __init__(self,
+                 word_num,
+                 depth,
+                 pos_en=Positional_Encoding2(),
+                 hidden=512,
+                 hopping=6,
+                 head=8,
+                 rate=0.1):
+        super().__init__()
+        self.layers = []
+        self.layers = [L.EmbedID(word_num,depth)]
+        self.layers += [pos_en]
+        for i in range(hopping):
+            self.layers += [Wrapper(Multi_Head_Attention(depth, head, rate),rate)]
+            self.layers += [Wrapper(FFN(depth,hidden))]
+    def forward(self,input_data):
+        x = input_data
+        for i in self.layers:
+            x = i(x)
+        return x
