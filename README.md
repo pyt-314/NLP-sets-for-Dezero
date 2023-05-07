@@ -10,6 +10,6 @@ dezeroに流行り(いまさら)の自然言語処理のモデルやアーキテ
 ✓Simple Attention(消去済み)<br>
 ✓Positional Encoding<br>
 ✓Layer Normalization<br>
-✘Transformer Encoder<br>
+✘Transformer Encoder(デバッグ未終了)<br>
 ✘Transformer Decoder<br>
 ✘Transformer Model<br>
