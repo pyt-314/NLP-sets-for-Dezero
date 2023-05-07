@@ -180,4 +180,4 @@ class Wrapper(Layer):
     def forward(self,x):
         ou = self.norm(x)
         ou = F.dropout(self.layer(ou),self.rate)
-
+        return ou
