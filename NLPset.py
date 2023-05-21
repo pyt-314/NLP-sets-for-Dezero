@@ -108,8 +108,11 @@ class Self_Attention(Multi_Head_Attention):
 class FFN(Layer):
     def __init__(self, in_size, hidden_size):
         super().__init__()
-        self.l1 = F.relu(L.Linear(hidden_size))
-        self.l2 = L.linear(in_size)
+        self.l1 = Dense(hidden_size)
+        self.l2 = Dense(in_size)
+    def forward(self,x):
+        x = self.l2(F.relu(self.l1(x)))
+        return x
 
 # =============================================================================
 # LayerNorm/PositionalEncoding/wrapper(from https://qiita.com/halhorn/items/c91497522be27bde17ce)
@@ -117,31 +120,38 @@ class FFN(Layer):
 
 def Norm(x):
     N,T,D = x.shape
+    x1 = x[:]
     #(N,T,D) -> (T*D,N)
     x = x.transpose(1,2,0).reshape(-1,N)
     mean = x.sum(axis=0,keepdims=True)/T*D
     var = ((x-mean).sum(axis=0,keepdims=True)/T*D)**0.5
-    out = (x-mean)/(var+1e-5)
-    return out.T.reshape(N,T,D)
+    out = (x1-mean)/(var+1e-5)
+    return out
 
 class LayerNorm(Layer):
     def __init__(self,hidden_size=None):
         super().__init__()
-        self.var = Parameter(np.ones(hidden_size,1))
-        self.ma = Parameter(np.zeros(hidden_size,1))
+        self.var = Parameter(None)
+        self.ma = Parameter(None)
+        if not hidden_size == None:
+            self.var = Parameter(np.ones((hidden_size))).reshape(-1,1)
+            self.ma = Parameter(np.zeros((hidden_size))).reshape(-1,1)
     def _init_params(self,x):
         self.var.data = np.ones((x,1))
         self.ma.data = np.zeros((x,1))
     def forward(self,x):
+        x1 = x
         self.shape = x.shape
         n = self.shape[1]*self.shape[2]
         if self.var.data == None:
             self._init_params(n)
+        #(N,T,H)->(N*T,H)
         x = x.reshape(self.shape[0],-1).T
         mean = x.sum(axis=0,keepdims=True)/n
         var1 = (((x - mean)**2).sum(axis=0,keepdims=True)/n)**0.5
         out = (x-mean)/(var1+1e-6)
-        return out*self.var+self.ma
+        out = out*self.var+self.ma
+        return out.T.reshape(*x1.shape)
 
 class Positional_Encoding1(Layer):
     def __init__(self,input_shape=None,max_len=1000):
@@ -179,7 +189,8 @@ class Wrapper(Layer):
         self.layer = layer
     def forward(self,x):
         ou = self.norm(x)
-        ou = F.dropout(self.layer(ou),self.rate)
+        ou = self.layer(ou)
+        ou = F.dropout(ou,self.rate)
         return ou
 
 # =============================================================================
@@ -198,12 +209,22 @@ class Transformer_Encoder(Layer):
         super().__init__()
         self.layers = []
         self.layers = [L.EmbedID(word_num,depth)]
+        #self.layers = [lambda x:x.transpose(1,2,0)]
         self.layers += [pos_en]
         for i in range(hopping):
-            self.layers += [Wrapper(Multi_Head_Attention(depth, head, rate),rate)]
+            self.layers += [Wrapper(Self_Attention(depth, head, rate),rate)]
             self.layers += [Wrapper(FFN(depth,hidden))]
     def forward(self,input_data):
         x = input_data
         for i in self.layers:
             x = i(x)
         return x
+
+# =============================================================================
+# test
+# =============================================================================
+
+model = Transformer_Encoder(word_num=10000,depth=256,hidden=128)
+x = np.arange(0,100,1).reshape(1,-1)[::-1]
+x = model.forward(x)
+x.backward()
