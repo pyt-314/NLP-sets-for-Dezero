@@ -215,10 +215,10 @@ class Wrapper(Layer):
         return ou
 
 # =============================================================================
-# Transformer Encoder/Transformer Decoder/Emdebbing With Positional Encoding
+# Transformer Encoder/Transformer Decoder/Embedding With Positional Encoding
 # =============================================================================
 
-class Emdebbing_with_pos(Layer):
+class Embedding_with_pos(Layer):
     def __init__(self,
                  word_num,
                  pos_en=Positional_Encoding2(),
