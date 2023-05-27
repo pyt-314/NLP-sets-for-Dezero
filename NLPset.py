@@ -16,7 +16,7 @@ import math
 import numpy as np
 
 # =============================================================================
-# Gelu
+# Gelu/mask
 # =============================================================================
 
 
@@ -25,10 +25,28 @@ def gelu(xs):
     out = 0.5 * xs * (1+F.tanh(out))
     return out
 
+class Mask(Function):
+    def __init__(self):
+        super().__init__()
+    def forward(self,x):
+        a= x.copy()
+        shape = x.shape
+        self.mask = ~np.tri(shape[1],shape[2],dtype="bool")
+        a[:,self.mask] = -float("inf")
+        return a
+    def backward(self,grad):
+        dx = grad.data.copy()
+        dx[:,self.mask] = 0
+        return dx
+
+def mask(x):
+    return Mask()(x)
+
+def none(x):
+    return x
 # =============================================================================
 # GLU(Now developing?)
 # =============================================================================
-
 
 class GLU(Layer):
     def __init__(self, out_size):
@@ -67,7 +85,7 @@ def matmul2(q, k):
 
 
 class Multi_Head_Attention(Layer):
-    def __init__(self, depth, head, rate):
+    def __init__(self, depth, head, rate, mask=none):
         super().__init__()
         self.depth = depth
         self.head = head
@@ -76,7 +94,7 @@ class Multi_Head_Attention(Layer):
         self.WV = Parameter(np.random.randn(depth//head, depth//head)*np.sqrt(1/(depth//head)))
         self.WO = Parameter(np.random.randn(depth//head, depth//head)*np.sqrt(1/(depth//head)))
         self.rate = rate
-
+        self.mask = mask
     def split(self, x):
         N, T, H = x.shape
         return x.reshape(N, T, H//self.head, self.head).transpose(0, 3, 1, 2)
@@ -91,7 +109,7 @@ class Multi_Head_Attention(Layer):
         q = matmul2(i, self.WQ)
         k = matmul2(m, self.WK)
         v = matmul2(m, self.WV)
-        logit = matmul2(q, k.transpose(0, 1, 3, 2))/np.sqrt(self.depth//self.head)
+        logit = self.mask(matmul2(q, k.transpose(0, 1, 3, 2))/np.sqrt(self.depth//self.head))
         a = F.softmax(logit,axis=2)
         a = F.dropout(a,self.rate)
         out = matmul2(a,v)
@@ -154,7 +172,7 @@ class LayerNorm(Layer):
         return out.T.reshape(*x1.shape)
 
 class Positional_Encoding1(Layer):
-    def __init__(self,input_shape=None,max_len=1000):
+    def __init__(self,input_shape=None,max_len=10000):
         super().__init__()
         if input_shape != None:
             self.map = Parameter(input_shape)
@@ -187,44 +205,72 @@ class Wrapper(Layer):
         self.rate = dropout_rate
         self.norm = LayerNorm()
         self.layer = layer
-    def forward(self,x):
+    def forward(self,x,m=None):
         ou = self.norm(x)
-        ou = self.layer(ou)
+        if m==None:
+            ou = self.layer(ou)
+        else:
+            ou = self.layers(ou,m)
         ou = F.dropout(ou,self.rate)
         return ou
 
 # =============================================================================
-# Transformer Encoder
+# Transformer Encoder/Transformer Decoder/Emdebbing With Positional Encoding
 # =============================================================================
+
+class Emdebbing_with_pos(Layer):
+    def __init__(self,
+                 word_num,
+                 pos_en=Positional_Encoding2(),
+                 depth=1024):
+        super().__init__()
+        self.layers = []
+        self.layers += [L.EmbedID(word_num,depth)]
+        self.layers += [pos_en]
+    def forward(self,x):
+        for l in self.layers:
+            x = l(x)
+        return x
 
 class Transformer_Encoder(Layer):
     def __init__(self,
-                 word_num,
                  depth,
-                 pos_en=Positional_Encoding2(),
                  hidden=512,
                  hopping=6,
                  head=8,
                  rate=0.1):
         super().__init__()
         self.layers = []
-        self.layers = [L.EmbedID(word_num,depth)]
         #self.layers = [lambda x:x.transpose(1,2,0)]
-        self.layers += [pos_en]
         for i in range(hopping):
             self.layers += [Wrapper(Self_Attention(depth, head, rate),rate)]
-            self.layers += [Wrapper(FFN(depth,hidden))]
+            self.layers += [Wrapper(FFN(depth,hidden),rate)]
     def forward(self,input_data):
         x = input_data
         for i in self.layers:
             x = i(x)
         return x
 
-# =============================================================================
-# test
-# =============================================================================
+class Transformer_Decoder(Layer):
+    def __init__(self,
+                 depth,
+                 hidden=512,
+                 hopping=6,
+                 head=8,
+                 rate=0.1):
+        super().__init__()
+        self.layers = []
+        for i in range(hopping):
+            self.layers += [(Wrapper(Self_Attention(depth, head, rate),rate),
+                             Wrapper(Multi_Head_Attention(depth, head, rate),rate),
+                             Wrapper(FFN(depth,hidden),rate))]
+    def forward(self,x,s):
+        for i in self.layers:
+            l1,l2,l3 = i
+            x = l1(x)
+            x = l2(x,s)
+            x = l3(x)
+        return x
 
-model = Transformer_Encoder(word_num=10000,depth=256,hidden=128)
-x = np.arange(0,100,1).reshape(1,-1)[::-1]
-x = model.forward(x)
-x.backward()
+class Transformer(Layer):
+    pass
