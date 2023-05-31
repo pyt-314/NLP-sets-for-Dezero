@@ -16,9 +16,8 @@ import math
 import numpy as np
 
 # =============================================================================
-# Gelu/mask
+# Gelu/mask/KLdiv/JSdiv
 # =============================================================================
-
 
 def gelu(xs):
     out = (xs + 0.047715 * xs**3)*math.sqrt(2/math.pi)
@@ -44,6 +43,15 @@ def mask(x):
 
 def none(x):
     return x
+
+def KLdiv(p,q):
+    return F.sum(p*F.log(p/q))
+
+def JSdiv(p,q):
+    m = (p+q)/2
+    out = (KLdiv(p,m)+KLdiv(q,m))/2
+    return out
+    
 # =============================================================================
 # GLU(Now developing?)
 # =============================================================================
@@ -205,12 +213,12 @@ class Wrapper(Layer):
         self.rate = dropout_rate
         self.norm = LayerNorm()
         self.layer = layer
-    def forward(self,x,m=None):
+    def forward(self,x,m=Variable(None)):
         ou = self.norm(x)
-        if m==None:
+        if m.data==None:
             ou = self.layer(ou)
         else:
-            ou = self.layers(ou,m)
+            ou = self.layer(ou,m)
         ou = F.dropout(ou,self.rate)
         return ou
 
@@ -273,4 +281,15 @@ class Transformer_Decoder(Layer):
         return x
 
 class Transformer(Layer):
-    pass
+    def __init__(self):
+        pass
+
+# =============================================================================
+# Test
+# =============================================================================
+
+model = Transformer_Decoder(128)
+x = np.random.randn(10,13,128)
+x2 = np.random.randn(10,25,128)
+y = model.forward(x,x2)
+y.backward()
