@@ -14,6 +14,7 @@ import dezero.functions as F
 import dezero.layers as L
 import math
 import numpy as np
+import nltk
 
 # =============================================================================
 # Gelu/mask/KLdiv/JSdiv
@@ -29,13 +30,13 @@ class Mask(Function):
         super().__init__()
     def forward(self,x):
         a= x.copy()
-        shape = x.shape
-        self.mask = ~np.tri(shape[1],shape[2],dtype="bool")
-        a[:,self.mask] = -float("inf")
+        N,H,T,D = x.shape
+        self.mask = np.tri(N,T,dtype="bool").reshape(N,1,-1).repeat(H,axis=1)
+        a[self.mask,:] = -float("inf")
         return a
     def backward(self,grad):
         dx = grad.data.copy()
-        dx[:,self.mask] = 0
+        dx[self.mask,:] = 0
         return dx
 
 def mask(x):
@@ -126,8 +127,8 @@ class Multi_Head_Attention(Layer):
         return out
 
 class Self_Attention(Multi_Head_Attention):
-    def __init__(self, depth, head, rate):
-        super().__init__(depth,head,rate)
+    def __init__(self, depth, head, rate,mask=none):
+        super().__init__(depth,head,rate,none)
     def forward(self,i):
         return super().forward(i,i)
 
@@ -269,8 +270,8 @@ class Transformer_Decoder(Layer):
         super().__init__()
         self.layers = []
         for i in range(hopping):
-            self.layers += [(Wrapper(Self_Attention(depth, head, rate),rate),
-                             Wrapper(Multi_Head_Attention(depth, head, rate),rate),
+            self.layers += [(Wrapper(Self_Attention(depth, head, rate,mask=mask),rate),
+                             Wrapper(Multi_Head_Attention(depth, head, rate,mask=mask),rate),
                              Wrapper(FFN(depth,hidden),rate))]
     def forward(self,x,s):
         for i in self.layers:
@@ -281,15 +282,39 @@ class Transformer_Decoder(Layer):
         return x
 
 class Transformer(Layer):
-    def __init__(self):
-        pass
+    def __init__(self,
+                 depth,
+                 hidden=512,
+                 hopping=6,
+                 head=8,
+                 rate=0.1):
+        self.Decoder = Transformer_Decoder(depth,hidden,hopping,head,rate)
+        self.Encoder = Transformer_Encoder(depth,hidden,hopping,head,rate)
+    def forward(self,X_En,X_De):
+        sorce = self.Encoder(X_De)
+        out = self.Decoder(X_En,sorce)
+        return out
+    def setup(self,algorithm):
+        algorithm.setup(self.Decoder)
+        algorithm.setup(self.Encoder)
 
+# =============================================================================
+# tokenize(from nltk)
+# =============================================================================
+
+class DataSet:
+    def __init__(self,file_name):
+        self.max_len()
 # =============================================================================
 # Test
 # =============================================================================
 
+
 model = Transformer_Decoder(128)
+op = dezero.optimizers.Adam(0.01)
+op.setup(model)
 x = np.random.randn(10,13,128)
 x2 = np.random.randn(10,25,128)
 y = model.forward(x,x2)
 y.backward()
+op.update()
