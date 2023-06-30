@@ -129,7 +129,7 @@ class Multi_Head_Attention(Layer):
 class Self_Attention(Multi_Head_Attention):
     def __init__(self, depth, head, rate,mask=none):
         super().__init__(depth,head,rate,none)
-    def forward(self,i):
+    def forward(self,i,m):
         return super().forward(i,i)
 
 class FFN(Layer):
@@ -137,7 +137,7 @@ class FFN(Layer):
         super().__init__()
         self.l1 = Dense(hidden_size)
         self.l2 = Dense(in_size)
-    def forward(self,x):
+    def forward(self,x,m):
         x = self.l2(F.relu(self.l1(x)))
         return x
 
@@ -216,7 +216,7 @@ class Wrapper(Layer):
         self.layer = layer
     def forward(self,x,m=Variable(None)):
         ou = self.norm(x)
-        if m.data==None:
+        if m==None:
             ou = self.layer(ou)
         else:
             ou = self.layer(ou,m)
@@ -281,13 +281,14 @@ class Transformer_Decoder(Layer):
             x = l3(x)
         return x
 
-class Transformer(Layer):
+class Transformer(Model):
     def __init__(self,
                  depth,
                  hidden=512,
                  hopping=6,
                  head=8,
                  rate=0.1):
+        super().__init__()
         self.Decoder = Transformer_Decoder(depth,hidden,hopping,head,rate)
         self.Encoder = Transformer_Encoder(depth,hidden,hopping,head,rate)
     def forward(self,X_En,X_De):
@@ -309,8 +310,7 @@ class DataSet:
 # Test
 # =============================================================================
 
-
-model = Transformer_Decoder(128)
+model = Transformer(128)
 op = dezero.optimizers.Adam(0.01)
 op.setup(model)
 x = np.random.randn(10,13,128)
