@@ -14,6 +14,6 @@ dezeroに流行り(いまさら)の自然言語処理のモデルやアーキテ
 ✓Layer Normalization<br>
 ✓Transformer Encoder<br>
 ✓Transformer Decoder<br>
-✘Transformer Model<br>
+✓Transformer Model<br>
 ✘BERT<br>
 ✘GPT
