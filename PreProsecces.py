@@ -10,6 +10,7 @@ import numpy as np
 from collections import deque
 import json
 
+
 text1 = None
 def gets(texts,t2i):
     out = []
@@ -61,11 +62,12 @@ def add_pad(tp,maxlen,t2i):
     return tuple(out)
 
 def save_data(tensor,folder,batchs):
+    batchs -= 1
     ite = int(len(tensor)/batchs)
-    for i in range(ite+1):
-        out1 = tensor[:i:ite]
-        progress = "#"*(int(i/ite*10)) +"_"*(10-int(i/ite*10))
-        np.save("{}/data_{}".format(folder,i),out1)
+    for i in range(ite+2):
+        out1 = tensor[i::ite]
+        progress = "#"*(int(i/ite*10)) +"."*(10-int(i/ite*10))
+        np.savez_compressed("{}/data_{}".format(folder,i),out1)
         print("\r[Converted:[{}]{:.1f}%]".format(progress,int(i/ite*100)),end='')
 
 def save_dict(dc,file):
@@ -76,3 +78,13 @@ def load_dict(file):
     with open(file) as f:
         dic = json.load(f)
     return dic
+
+def load_dataV1(file,t2i):
+    i = len(t2i)
+    tensor = np.load(file+".npz")
+    data = np.eye(i)[tensor]
+    return data
+
+def load_dataV2(file):
+    tensor = np.load(file+".npz")['arr_0']
+    return tensor
