@@ -76,4 +76,3 @@ def load_dict(file):
     with open(file) as f:
         dic = json.load(f)
     return dic
-text1 = load_text_data("train.en.txt")
