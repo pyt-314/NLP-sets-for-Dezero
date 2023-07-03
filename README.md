@@ -16,8 +16,8 @@ dezeroに流行り(いまさら)の自然言語処理のモデルやアーキテ
 ✓Transformer Decoder<br>
 ✓Transformer Model<br>
 ✘BERT<br>
-✘GPT
-学習用ファイル<br>
+✘GPT<br>
+=========学習用ファイル=======<br>
 ✓テキスト<=>index<br>
-✓padding追加&バッチサイズごとに保存
+✓padding追加&バッチサイズごとに保存<br>
 ✘サブワード分割
